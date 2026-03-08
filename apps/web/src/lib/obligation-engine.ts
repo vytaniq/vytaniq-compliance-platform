@@ -131,7 +131,7 @@ export async function getOrgObligationsWithStatus(
 /**
  * Group obligations by category for dashboard
  */
-export async function getObligation sByCategory(orgId: string) {
+export async function getObligationsByCategory(orgId: string) {
   const obligations = await getOrgObligationsWithStatus(orgId)
 
   const grouped: Record<string, typeof obligations> = {}

@@ -4,7 +4,12 @@
 // Score bands: Investor Ready (85-100), Audit Ready (70-84), Work Required (50-69), At Risk (<50)
 
 import { prisma } from './prisma'
-import type { ScoreBand } from '@prisma/client'
+// ScoreBand enum defined here to match prisma schema
+export type ScoreBand =
+  | 'INVESTOR_READY'
+  | 'AUDIT_READY'
+  | 'WORK_REQUIRED'
+  | 'AT_RISK'
 
 export interface ComponentScores {
   obligationCoverage: number // 0-1
@@ -51,7 +56,7 @@ export async function calculateReadinessScore(orgId: string): Promise<ReadinessS
   })
 
   const metOrPartialObligations = obligations.filter(
-    (o) => o.status === 'MET' || o.status === 'PARTIAL'
+    (o: { status: string }) => o.status === 'MET' || o.status === 'PARTIAL'
   )
 
   const obligationCoverage =
@@ -71,7 +76,7 @@ export async function calculateReadinessScore(orgId: string): Promise<ReadinessS
     },
   })
 
-  const submittedReports = reportEntries.filter((e) => e.submittedAt).length
+  const submittedReports = reportEntries.filter((e: { submittedAt?: Date }) => e.submittedAt).length
   const reportSubmission =
     reportEntries.length > 0 ? submittedReports / reportEntries.length : 1 // No reports = 100%
 
@@ -87,7 +92,7 @@ export async function calculateReadinessScore(orgId: string): Promise<ReadinessS
     },
   })
 
-  const acknowledgedCirculars = applicableCirculars.filter((oc) => {
+  const acknowledgedCirculars = applicableCirculars.filter((oc: any) => {
     if (!oc.acknowledgedAt) return false
 
     // Acknowledge within 14 days of circular date
@@ -216,7 +221,7 @@ export async function getScoreGaps(orgId: string): Promise<Array<{
     throw new Error(`Could not calculate score for org ${orgId}`)
   }
 
-  const gaps = []
+  const gaps: Array<{ component: string; impact: number; actionItems: string[] }> = []
 
   // Identify underperforming components
   Object.entries(score.components).forEach(([component, value]) => {

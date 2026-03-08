@@ -3,7 +3,7 @@
 // Parses deadline_logic and computes next due dates for reports
 // Handles business days, anchors (month-end, quarter-end, fiscal year-end)
 
-import { add, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, endOfYear, isBusinessDay } from 'date-fns'
+import { add, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, endOfYear, isWeekend } from 'date-fns'
 
 export interface DeadlineLogic {
   frequency: 'Monthly' | 'Quarterly' | 'Annual' | 'One-time' | 'Event-triggered'
@@ -61,7 +61,7 @@ export function computeNextDueDate(
 
   // If businessDaysOnly, skip weekends
   if (deadlineLogic.businessDaysOnly) {
-    while (!isBusinessDay(dueDate)) {
+    while (isWeekend(dueDate)) {
       dueDate = add(dueDate, { days: deadlineLogic.offsetDirection === 'after' ? 1 : -1 })
     }
   }
