@@ -1,0 +1,406 @@
+// Vytaniq Compliance Platform - PostgreSQL Prisma Schema
+// Phase 1 MVP with versioning, audit logging, and compliance tracking
+// Requirements: PRD.md + PRD_APPENDIX_A.md
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// USERS & ORGANIZATIONS
+// ============================================================================
+
+model Organization {
+  id                    String                      @id @default(uuid())
+  name                  String
+  companyRegistration   String?
+  licenseTypes          String[]                    // ["PSP", "MMO", "Switching", "PSSB"]
+  activityFlags         String[]                    // ["payments", "lending", "FX", etc.]
+  licenseNumber         String?
+  licenseIssueDate      DateTime?
+  licenseRenewalDate    DateTime?
+  planTier              PlanTier                    @default(FREE)
+  users                 User[]
+  obligations           OrgObligation[]
+  circulars             OrgCircular[]
+  disputes              CircularDispute[]
+  reportCalendar        ReportCalendar[]
+  readinessScores       ReadinessScore[]
+  auditLogs             AuditLog[]
+  deletedAt             DateTime?                  // Soft delete for NDPR compliance
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+
+  @@index([deletedAt])
+}
+
+model User {
+  id                    String                      @id @default(uuid())
+  orgId                 String
+  organization          Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email                 String                      @unique
+  passwordHash          String
+  role                  UserRole                    @default(MEMBER)
+  firstName             String?
+  lastName              String?
+  lastLogin             DateTime?
+  emailVerified         Boolean                     @default(false)
+  mfaEnabled            Boolean                     @default(false)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+enum UserRole {
+  ADMIN     // Organization admin
+  MEMBER    // Compliance team member
+  OBSERVER  // Read-only (investor)
+}
+
+enum PlanTier {
+  FREE      // Freemium tier
+  STARTER   // ₦150,000/month: 3 users, basic features
+  GROWTH    // ₦350,000/month: 10 users, evidence vault
+  ENTERPRISE // Custom: unlimited users, API access, priority support
+}
+
+// ============================================================================
+// OBLIGATIONS & VERSIONING (PRD A1)
+// ============================================================================
+
+model Obligation {
+  id                    String                      @id @default(uuid())
+  title                 String
+  description           String                      @db.Text
+  legalSource           String                      // "CBN Circular 2025/03, Section 4.2"
+  category              ObligationCategory
+  licenseTypes          String[]                    // ["PSP", "MMO"]
+  activityFlags         String[]                    // ["payments", "lending"]
+  frequency             ObligationFrequency
+  deadlineLogic         Json                        // PRD A6.1: { frequency, anchor, offsetDays, etc. }
+  autoFillMappings      Json?                       // PRD A6.1: { field_id: { source_type, source_path } }
+  evidenceRequired      Json[]                      // PRD A6.1: [{ docType, mandatory, acceptedFormats, maxAgeMonths }]
+  severity              ObligationSeverity
+  versions              ObligationVersion[]
+  orgObligations        OrgObligation[]
+  createdAt             DateTime                    @default(now())
+
+  @@index([category])
+  @@index([frequency])
+}
+
+model ObligationVersion {
+  id                    String                      @id @default(uuid())
+  obligationId          String
+  obligation            Obligation                  @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+  versionNumber         Int                         // Auto-increments (v1, v2, v3)
+  changeType            ChangeType
+  changeSummary         String                      // "Extended deadline from 5 to 10 business days"
+  changedBy             String                      // User ID (Vytaniq legal team)
+  changedAt             DateTime                    @default(now())
+  effectiveFrom         DateTime                    // Minimum 7 days future (PRD A1 Rule 4)
+  sourceCircularId      String?                     // CBN circular that triggered this
+  previousVersionId     String?                     // Link to prior version
+  isCurrent             Boolean                     @default(true)
+  
+  // Content fields (duplicated from Obligation for versioning)
+  title                 String
+  description           String                      @db.Text
+  legalSource           String
+  category              ObligationCategory
+  licenseTypes          String[]
+  activityFlags         String[]
+  frequency             ObligationFrequency
+  deadlineLogic         Json
+  severity              ObligationSeverity
+  evidenceRequired      Json[]
+  
+  // Audit trail
+  orgObligations        OrgObligation[]
+  createdAt             DateTime                    @default(now())
+
+  @@unique([obligationId, versionNumber])
+  @@index([obligationId, isCurrent])
+  @@index([effectiveFrom])
+}
+
+enum ChangeType {
+  CREATED
+  REQUIREMENT_UPDATED
+  DEADLINE_CHANGED
+  SEVERITY_CHANGED
+  DEPRECATED
+  REINSTATED
+}
+
+enum ObligationCategory {
+  KYC
+  AML
+  REPORTING
+  GOVERNANCE
+  TECHNOLOGY
+  CONSUMER_PROTECTION
+  CAPITAL
+}
+
+enum ObligationFrequency {
+  ONE_TIME
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  EVENT_TRIGGERED
+}
+
+enum ObligationSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+// ============================================================================
+// ORG OBLIGATIONS (Status tracking + Evidence vault)
+// ============================================================================
+
+model OrgObligation {
+  id                    String                      @id @default(uuid())
+  orgId                 String
+  organization          Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  obligationId          String
+  obligation            Obligation                  @relation(fields: [obligationId], references: [id], onDelete: Restrict)
+  obligationVersionId   String                      // PRD A6 Rule 1: store version ID
+  obligationVersion     ObligationVersion           @relation(fields: [obligationVersionId], references: [id], onDelete: Restrict)
+  status                ObligationStatus            @default(NOT_STARTED)
+  evidenceUrls          String[]                    // S3 presigned URLs
+  completedAt           DateTime?
+  completedBy           String?                     // User ID
+  notes                 String?                     @db.Text
+  deletedAt             DateTime?                   // Soft delete
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@unique([orgId, obligationId])
+  @@index([orgId, status])
+  @@index([obligationId])
+}
+
+enum ObligationStatus {
+  MET
+  PARTIAL
+  NOT_STARTED
+  AT_RISK
+  WAIVED
+}
+
+// ============================================================================
+// CIRCULARS & DISPUTES (Circular tracking + impact analysis + disputes)
+// ============================================================================
+
+model Circular {
+  id                    String                      @id @default(uuid())
+  title                 String
+  summary               String                      @db.Text
+  content               String?                     @db.Text
+  date                  DateTime
+  url                   String?
+  affectedLicenseTypes  String[]                    // ["PSP", "MMO"]
+  affectedObligationIds String[]                    // Obligation IDs this circular affects
+  urgency               CircularUrgency             @default(MONITOR)
+  taggingConfidence     TaggingConfidence           @default(MEDIUM)
+  publishedAt           DateTime                    @default(now())
+  orgCirculars          OrgCircular[]
+  disputes              CircularDispute[]
+  createdAt             DateTime                    @default(now())
+
+  @@index([date])
+  @@index([urgency])
+}
+
+enum CircularUrgency {
+  CRITICAL    // Requires immediate action
+  HIGH        // Action required within 14 days
+  MONITOR     // Track but low priority
+}
+
+enum TaggingConfidence {
+  HIGH
+  MEDIUM
+  LOW         // Display banner: "Impact assessment pending full review"
+}
+
+model OrgCircular {
+  id                    String                      @id @default(uuid())
+  orgId                 String
+  organization          Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  circularId            String
+  circular              Circular                    @relation(fields: [circularId], references: [id], onDelete: Cascade)
+  relevanceTag          RelevanceTag                @default(APPLIES_TO_YOU)
+  acknowledgedAt        DateTime?
+  acknowledgedBy        String?                     // User ID
+  disputed              Boolean                     @default(false)
+  createdAt             DateTime                    @default(now())
+
+  @@unique([orgId, circularId])
+  @@index([orgId, relevanceTag])
+}
+
+enum RelevanceTag {
+  APPLIES_TO_YOU
+  MONITOR
+  NOT_APPLICABLE
+  DISPUTED_PENDING
+}
+
+model CircularDispute {
+  id                    String                      @id @default(uuid())
+  orgId                 String
+  organization          Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  circularId            String
+  circular              Circular                    @relation(fields: [circularId], references: [id], onDelete: Cascade)
+  raisedBy              String                      // User ID
+  raisedAt              DateTime                    @default(now())
+  reason                String                      @db.Text
+  status                DisputeStatus               @default(OPEN)
+  reviewedBy            String?                     // Admin user ID
+  reviewedAt            DateTime?
+  resolutionNote        String?                     @db.Text
+  outcome               DisputeOutcome?
+
+  @@unique([orgId, circularId])
+  @@index([status, reviewedAt])
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_CONFIRMED
+  RESOLVED_WITHDRAWN
+  RESOLVED_PARTIAL
+}
+
+enum DisputeOutcome {
+  RELEVANCE_CONFIRMED
+  RELEVANCE_WITHDRAWN
+  PARTIAL_RELEVANCE
+}
+
+// ============================================================================
+// REPORT CALENDAR & SUBMISSIONS
+// ============================================================================
+
+model ReportCalendar {
+  id                    String                      @id @default(uuid())
+  orgId                 String
+  organization          Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  obligationId          String
+  obligationVersionId   String
+  template              String?                     // Phase 2: report template ID
+  dueDate               DateTime
+  submittedAt           DateTime?
+  submissionEvidenceUrl String?                     // S3 proof of submission
+  status                ReportStatus                @default(PENDING)
+  notes                 String?                     @db.Text
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@index([orgId, status, dueDate])
+  @@index([dueDate])
+}
+
+enum ReportStatus {
+  PENDING
+  SUBMITTED
+  OVERDUE
+  ACKNOWLEDGED_BY_CBN
+}
+
+// ============================================================================
+// READINESS SCORE (Compliance health metric)
+// ============================================================================
+
+model ReadinessScore {
+  id                    String                      @id @default(uuid())
+  orgId                 String
+  organization          Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  totalScore            Int                         // 0-100
+  band                  ScoreBand
+  components            Json                        // { obligationCoverage: 0.35, reportSubmission: 0.30, ... }
+  computedAt            DateTime                    @default(now())
+  createdAt             DateTime                    @default(now())
+
+  @@index([orgId, computedAt])
+  @@index([band])
+}
+
+enum ScoreBand {
+  INVESTOR_READY        // 85-100
+  AUDIT_READY           // 70-84
+  WORK_REQUIRED         // 50-69
+  AT_RISK               // Below 50
+}
+
+// ============================================================================
+// AUDIT LOGGING (Append-only, immutable)
+// ============================================================================
+
+model AuditLog {
+  id                    String                      @id @default(uuid())
+  orgId                 String
+  organization          Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId                String                      // User ID (from JWT)
+  actionType            String                      // "OBLIGATION_STATUS_UPDATED", "EVIDENCE_UPLOADED", etc.
+  entityType            String                      // "org_obligation", "org_circular", etc.
+  entityId              String                      // ID of the entity that changed
+  metadata              Json                        // { previousStatus: "Not Started", newStatus: "Met", ... }
+  timestamp             DateTime                    @default(now())
+  ipAddress             String?
+  userAgent             String?
+
+  @@index([orgId])
+  @@index([timestamp])
+  @@index([actionType])
+}
+
+// ============================================================================
+// SESSIONS & TOKENS (For refresh token revocation)
+// ============================================================================
+
+model RefreshToken {
+  id                    String                      @id @default(uuid())
+  userId                String
+  token                 String                      @unique
+  expiresAt             DateTime
+  revokedAt             DateTime?                   // For logout/security events
+  createdAt             DateTime                    @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================================================
+// OTP VERIFICATION (For email verification)
+// ============================================================================
+
+model OtpVerification {
+  id                    String                      @id @default(uuid())
+  email                 String
+  otpHash               String                      // Hashed OTP (never store plain text)
+  expiresAt             DateTime
+  attempts              Int                         @default(0)
+  verified              Boolean                     @default(false)
+  createdAt             DateTime                    @default(now())
+
+  @@unique([email])
+}
+
+// Database rules to enforce audit log immutability (PostgreSQL)
+// These must be applied via migrations:
+// CREATE RULE no_update_audit_logs AS ON UPDATE TO "AuditLog" DO INSTEAD NOTHING;
+// CREATE RULE no_delete_audit_logs AS ON DELETE TO "AuditLog" DO INSTEAD NOTHING;
