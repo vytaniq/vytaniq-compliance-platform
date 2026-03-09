@@ -50,7 +50,7 @@ export const POST = withAuth(
       const { orgId, userId } = context
 
       // 2. Perform everything inside a transaction to maintain consistency
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         // update organization configuration
         const org = await tx.organization.update({
           where: { id: orgId },
@@ -80,7 +80,7 @@ export const POST = withAuth(
           status: string
         }> = []
 
-        orgObligations.forEach((oo) => {
+        orgObligations.forEach((oo: any) => {
           const logic = oo.obligation.deadlineLogic
           if (logic) {
             const dates = computeNextDueDates(logic as any, new Date(), 12)

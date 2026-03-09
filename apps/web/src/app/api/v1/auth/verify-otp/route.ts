@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Verify OTP (timing-safe comparison)
-    const { valid, expired } = await verifyOTP(otp, otpRecord.otpHash, otpRecord.expiresAt)
+    const { valid, expired } = await verifyOTP(otp as string, otpRecord.otpHash, otpRecord.expiresAt)
 
     if (expired) {
       return NextResponse.json(

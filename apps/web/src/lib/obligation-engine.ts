@@ -36,14 +36,14 @@ export async function getApplicableObligations(orgId: string) {
   })
 
   // Further filter by activity flags
-  const filtered = applicableObligations.filter((obligation) => {
+  const filtered = applicableObligations.filter((obligation: any) => {
     // If obligation has no activity flag requirements, it applies
     if (!obligation.activityFlags || obligation.activityFlags.length === 0) {
       return true
     }
 
     // If obligation has activity flag requirements, check if org has any matching
-    return obligation.activityFlags.some((flag) => org.activityFlags.includes(flag))
+    return obligation.activityFlags.some((flag: any) => org.activityFlags.includes(flag))
   })
 
   return filtered
@@ -63,7 +63,7 @@ export async function createInitialOrgObligations(orgId: string): Promise<number
 
   // For each applicable obligation, get the current version
   const orgObligationsToCreate = await Promise.all(
-    applicableObligations.map(async (obligation) => {
+    applicableObligations.map(async (obligation: any) => {
       const currentVersion = await prisma.obligationVersion.findFirst({
         where: {
           obligationId: obligation.id,
@@ -105,15 +105,30 @@ export async function getOrgObligationsWithStatus(
     severity?: string
   }
 ) {
+  const whereClause: any = {
+    orgId
+  }
+
+  // Build obligation filter conditionally
+  const obligationFilter: any = {}
+  if (filters?.category) {
+    obligationFilter.category = filters.category
+  }
+  if (filters?.severity) {
+    obligationFilter.severity = filters.severity
+  }
+  
+  if (Object.keys(obligationFilter).length > 0) {
+    whereClause.obligation = obligationFilter
+  }
+
+  // Add status filter if provided
+  if (filters?.status) {
+    whereClause.status = filters.status
+  }
+
   const orgObligations = await prisma.orgObligation.findMany({
-    where: {
-      orgId,
-      obligation: {
-        ...(filters?.category && { category: filters.category }),
-        ...(filters?.severity && { severity: filters.severity }),
-      },
-      ...(filters?.status && { status: filters.status }),
-    },
+    where: whereClause,
     include: {
       obligation: true,
       obligationVersion: true,
@@ -136,7 +151,7 @@ export async function getObligationsByCategory(orgId: string) {
 
   const grouped: Record<string, typeof obligations> = {}
 
-  obligations.forEach((obligation) => {
+  obligations.forEach((obligation: any) => {
     const category = obligation.obligation.category
     if (!grouped[category]) {
       grouped[category] = []
@@ -155,11 +170,11 @@ export async function getObligationsSummary(orgId: string) {
 
   const summary = {
     total: obligations.length,
-    met: obligations.filter((o) => o.status === 'MET').length,
-    partial: obligations.filter((o) => o.status === 'PARTIAL').length,
-    notStarted: obligations.filter((o) => o.status === 'NOT_STARTED').length,
-    atRisk: obligations.filter((o) => o.status === 'AT_RISK').length,
-    waived: obligations.filter((o) => o.status === 'WAIVED').length,
+    met: obligations.filter((o: any) => o.status === 'MET').length,
+    partial: obligations.filter((o: any) => o.status === 'PARTIAL').length,
+    notStarted: obligations.filter((o: any) => o.status === 'NOT_STARTED').length,
+    atRisk: obligations.filter((o: any) => o.status === 'AT_RISK').length,
+    waived: obligations.filter((o: any) => o.status === 'WAIVED').length,
   }
 
   return summary
@@ -190,7 +205,7 @@ export async function updateObligationStatus(
   const updated = await prisma.orgObligation.update({
     where: { id: orgObligation.id },
     data: {
-      status: newStatus,
+      status: newStatus as any,
       completedAt: newStatus === 'MET' ? new Date() : null,
       completedBy: newStatus === 'MET' ? userId : null,
     },

@@ -33,7 +33,7 @@ export const GET = withAuth(async (_req: NextRequest, context) => {
   })
 
   // strip out sensitive fields if necessary
-  const result = orgObligations.map((oo) => ({
+  const result = orgObligations.map((oo: any) => ({
     id: oo.id,
     status: oo.status,
     notes: oo.notes,

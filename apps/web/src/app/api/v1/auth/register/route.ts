@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Hash password (bcrypt 12 rounds)
-    const passwordHash = await hashPassword(password)
+    const passwordHash = await hashPassword(password as string)
 
     // 4. Create organization
     const org = await prisma.organization.create({
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 
     // 8. Send OTP email
     try {
-      await sendOTPEmail(email, otp, companyName)
+      await sendOTPEmail(email as string, otp, companyName as string)
     } catch (error) {
       console.error('Failed to send OTP email:', error)
       // Continue - OTP is stored, user can request resend

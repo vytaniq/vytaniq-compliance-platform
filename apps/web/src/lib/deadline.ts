@@ -164,6 +164,13 @@ export function shouldTriggerReminder(dueDate: Date, reminderDays: number): bool
 }
 
 /**
+ * Check if a date is a business day (Monday-Friday)
+ */
+function isBusinessDay(date: Date): boolean {
+  return !isWeekend(date)
+}
+
+/**
  * Calculate business days between two dates
  */
 export function countBusinessDays(startDate: Date, endDate: Date): number {

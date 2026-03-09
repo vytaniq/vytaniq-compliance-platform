@@ -13,8 +13,8 @@ export interface TokenPayload {
   exp: number
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'CHANGE_ME_64_CHAR_RANDOM_STRING'
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'CHANGE_ME_DIFFERENT_64_CHAR_RANDOM'
+const JWT_SECRET = (process.env.JWT_SECRET || 'CHANGE_ME_64_CHAR_RANDOM_STRING') as string
+const JWT_REFRESH_SECRET = (process.env.JWT_REFRESH_SECRET || 'CHANGE_ME_DIFFERENT_64_CHAR_RANDOM') as string
 const JWT_ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || '15m'
 const JWT_REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || '7d'
 
@@ -22,10 +22,10 @@ const JWT_REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || '7d'
  * Sign an access token (short-lived, 15 minutes)
  */
 export function signAccessToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, JWT_SECRET as string, {
     expiresIn: JWT_ACCESS_EXPIRES,
     algorithm: 'HS256',
-  })
+  } as any)
 }
 
 /**
@@ -33,10 +33,10 @@ export function signAccessToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): str
  * Should be stored in httpOnly cookie
  */
 export function signRefreshToken(userId: string, orgId: string): string {
-  return jwt.sign({ userId, orgId }, JWT_REFRESH_SECRET, {
+  return jwt.sign({ userId, orgId }, JWT_REFRESH_SECRET as string, {
     expiresIn: JWT_REFRESH_EXPIRES,
     algorithm: 'HS256',
-  })
+  } as any)
 }
 
 /**

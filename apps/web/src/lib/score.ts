@@ -76,7 +76,7 @@ export async function calculateReadinessScore(orgId: string): Promise<ReadinessS
     },
   })
 
-  const submittedReports = reportEntries.filter((e: { submittedAt?: Date }) => e.submittedAt).length
+  const submittedReports = reportEntries.filter((e: any) => e.submittedAt).length
   const reportSubmission =
     reportEntries.length > 0 ? submittedReports / reportEntries.length : 1 // No reports = 100%
 
@@ -111,7 +111,7 @@ export async function calculateReadinessScore(orgId: string): Promise<ReadinessS
   // COMPONENT 4: Evidence Completeness (10%)
   // % of obligations with at least one evidence document
   const obligationsWithEvidence = obligations.filter(
-    (o) => o.evidenceUrls && o.evidenceUrls.length > 0
+    (o: any) => o.evidenceUrls && o.evidenceUrls.length > 0
   ).length
 
   const evidenceCompleteness =
@@ -179,7 +179,7 @@ export async function saveReadinessScore(
       orgId,
       totalScore: score.totalScore,
       band: score.band,
-      components: score.components,
+      components: score.components as any,
     },
   })
 }
@@ -200,7 +200,7 @@ export async function getLatestReadinessScore(orgId: string): Promise<ReadinessS
   return {
     totalScore: latest.totalScore,
     band: latest.band,
-    components: latest.components as ComponentScores,
+    components: latest.components as unknown as ComponentScores,
     computedAt: latest.computedAt,
   }
 }
@@ -221,7 +221,7 @@ export async function getScoreGaps(orgId: string): Promise<Array<{
     throw new Error(`Could not calculate score for org ${orgId}`)
   }
 
-  const gaps: Array<{ component: string; impact: number; actionItems: string[] }> = []
+  const gaps: Array<{ component: keyof ComponentScores; currentValue: number; maximumValue: number; impact: number }> = []
 
   // Identify underperforming components
   Object.entries(score.components).forEach(([component, value]) => {

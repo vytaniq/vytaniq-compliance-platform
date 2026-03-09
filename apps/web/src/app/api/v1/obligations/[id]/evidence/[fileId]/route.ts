@@ -13,7 +13,16 @@ export const DELETE = withAuth(
   withRole(
     withPlan(async (req: NextRequest, context) => {
       const { orgId, userId } = context
-      const { id, fileId } = context.params as { id: string; fileId: string }
+      const urlParts = req.nextUrl.pathname.split('/')
+      const id = urlParts[5] // /api/v1/obligations/[id]/evidence/[fileId]
+      const fileId = urlParts[7]
+
+      if (!id || !fileId) {
+        return NextResponse.json(
+          { error: 'Obligation ID and file ID are required' },
+          { status: 400 }
+        )
+      }
 
       // fileId is expected to be the URL encoded as URI component
       const evidenceUrl = decodeURIComponent(fileId)
@@ -24,7 +33,7 @@ export const DELETE = withAuth(
         return NextResponse.json({ error: 'Obligation not found' }, { status: 404 })
       }
 
-      const updatedUrls = existing.evidenceUrls.filter((u) => u !== evidenceUrl)
+      const updatedUrls = existing.evidenceUrls.filter((u: any) => u !== evidenceUrl)
       if (updatedUrls.length === existing.evidenceUrls.length) {
         return NextResponse.json({ error: 'Evidence not found' }, { status: 404 })
       }

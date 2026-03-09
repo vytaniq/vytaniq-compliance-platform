@@ -29,7 +29,6 @@ export type DisputeCircularInput = z.infer<typeof disputeCircularSchema>
  * Resolve circular dispute schema (admin only)
  */
 export const resolveDisputeSchema = z.object({
-  disputeId: z.string().uuid('Invalid dispute ID'),
   outcome: z.enum([
     'RELEVANCE_CONFIRMED',
     'RELEVANCE_WITHDRAWN',
@@ -56,7 +55,10 @@ export const ingestCircularSchema = z.object({
     .min(20, 'Summary required')
     .max(5000),
   content: z.string().optional(),
-  date: z.coerce.date('Invalid date'),
+  date: z
+    .coerce
+    .date()
+    .refine((date) => date instanceof Date, 'Invalid date'),
   url: z.string().url('Invalid URL').optional(),
   affectedLicenseTypes: z
     .array(z.enum(['PSP', 'MMO', 'SWITCHING', 'PSSB']))

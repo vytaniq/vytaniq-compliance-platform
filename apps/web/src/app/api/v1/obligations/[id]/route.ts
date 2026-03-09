@@ -9,13 +9,21 @@ import { withPlan } from '@/middleware/withPlan'
 import { prisma } from '@/lib/prisma'
 import { updateObligationStatusSchema } from '@/validators/obligation'
 import { auditObligationStatusUpdate } from '@/lib/audit'
+import { calculateReadinessScore, saveReadinessScore } from '@/lib/score'
 
 /**
  * GET returns detailed obligation record
  */
-export const GET = withAuth(async (_req: NextRequest, context) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
   const { orgId } = context
-  const { id } = context.params as { id: string }
+  const id = req.nextUrl.pathname.split('/')[4] // /api/v1/obligations/[id]
+
+  if (!id) {
+    return NextResponse.json(
+      { error: 'Obligation ID is required' },
+      { status: 400 }
+    )
+  }
 
   const oo = await prisma.orgObligation.findUnique({
     where: { id },
@@ -36,7 +44,14 @@ export const PATCH = withAuth(
   withRole(
     withPlan(async (req: NextRequest, context) => {
       const { orgId, userId } = context
-      const { id } = context.params as { id: string }
+      const id = req.nextUrl.pathname.split('/')[4] // /api/v1/obligations/[id]
+
+      if (!id) {
+        return NextResponse.json(
+          { error: 'Obligation ID is required' },
+          { status: 400 }
+        )
+      }
 
       const body = await req.json()
       // include path id in payload for validation

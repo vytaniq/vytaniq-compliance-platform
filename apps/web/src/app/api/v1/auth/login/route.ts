@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     // Prevent email enumeration: same response for existing/non-existing emails
     if (!user) {
       // Broadcast failed login attempt to monitoring
-      await auditLoginFailure(email, 'User not found', ipAddress)
+      await auditLoginFailure(email as string, 'User not found', ipAddress)
 
       return NextResponse.json(
         {
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Send OTP email
     try {
-      await sendOTPEmail(email, otp, user.organization.name)
+      await sendOTPEmail(email as string, otp, user.organization.name)
     } catch (error) {
       console.error('Failed to send OTP email:', error)
       // Continue - OTP is stored

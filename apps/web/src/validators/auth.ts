@@ -19,8 +19,8 @@ export const registerSchema = z
     email: z
       .string()
       .email('Invalid email address')
-      .lowercase()
-      .max(255),
+      .max(255)
+      .transform((e) => e.toLowerCase()),
     password: z
       .string()
       .min(8, 'Password must be at least 8 characters')
@@ -45,7 +45,11 @@ export type RegisterInput = z.infer<typeof registerSchema>
  * Login schema
  */
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address').lowercase(),
+  email: z
+    .string()
+    .email('Invalid email address')
+    .max(255)
+    .transform((e) => e.toLowerCase()),
   password: z.string().min(1, 'Password required'),
 })
 
@@ -55,7 +59,11 @@ export type LoginInput = z.infer<typeof loginSchema>
  * OTP verification schema
  */
 export const verifyOTPSchema = z.object({
-  email: z.string().email('Invalid email address').lowercase(),
+  email: z
+    .string()
+    .email('Invalid email address')
+    .max(255)
+    .transform((e) => e.toLowerCase()),
   otp: z
     .string()
     .length(6, 'OTP must be 6 digits')

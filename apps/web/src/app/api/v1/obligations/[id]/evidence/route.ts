@@ -13,7 +13,14 @@ import { writeAuditLog } from '@/lib/audit'
 export const POST = withAuth(
   withPlan(async (req: NextRequest, context) => {
     const { orgId, userId } = context
-    const { id } = context.params as { id: string }
+    const id = req.nextUrl.pathname.split('/')[4] // /api/v1/obligations/[id]/evidence
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Obligation ID is required' },
+        { status: 400 }
+      )
+    }
 
     const body = await req.json()
     const parseResult = uploadEvidenceSchema.safeParse({

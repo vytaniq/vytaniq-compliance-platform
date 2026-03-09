@@ -15,8 +15,14 @@ export const licensConfigSchema = z.object({
     .string()
     .min(5, 'License number required')
     .regex(/^[A-Z0-9\-\/]+$/, 'Invalid license number format'),
-  licenseIssueDate: z.coerce.date('Invalid issue date'),
-  licenseRenewalDate: z.coerce.date('Invalid renewal date'),
+  licenseIssueDate: z
+    .coerce
+    .date()
+    .refine((date) => date instanceof Date, 'Invalid issue date'),
+  licenseRenewalDate: z
+    .coerce
+    .date()
+    .refine((date) => date instanceof Date, 'Invalid renewal date'),
 })
 
 export type LicenseConfigInput = z.infer<typeof licensConfigSchema>
