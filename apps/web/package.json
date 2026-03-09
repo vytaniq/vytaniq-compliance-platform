@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "prisma": "prisma"
+    "prisma": "prisma",
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
@@ -30,6 +34,7 @@
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0",
     "prisma": "^5.22.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
   }
 }

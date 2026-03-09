@@ -1,0 +1,872 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Vytaniq Compliance Platform API",
+    "description": "RESTful API for regulatory compliance tracking, obligation management, circular distribution, and readiness scoring",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Vytaniq Support",
+      "url": "https://vytaniq.com"
+    },
+    "license": {
+      "name": "Proprietary"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.vytaniq.com/api/v1",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token from auth endpoints"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "AuditLogEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "orgId": { "type": "string", "format": "uuid" },
+          "userId": { "type": "string", "format": "uuid" },
+          "actionType": { "type": "string" },
+          "entityType": { "type": "string" },
+          "entityId": { "type": "string" },
+          "metadata": { "type": "object" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register new organization and user",
+        "operationId": "registerUser",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "companyName", "licenseTypes"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "companyName": { "type": "string" },
+                  "companyRegistration": { "type": "string" },
+                  "licenseTypes": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User and organization created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "email": { "type": "string" },
+                        "orgId": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid request data" },
+          "409": { "description": "Email already exists" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Request OTP for login",
+        "operationId": "loginRequest",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent to email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "sessionId": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "User not found" }
+        }
+      }
+    },
+    "/auth/verify-otp": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Verify OTP and get access/refresh tokens",
+        "operationId": "verifyOtp",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "otp"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "otp": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens issued successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": { "type": "string" },
+                    "refreshToken": { "type": "string" },
+                    "expiresIn": { "type": "number" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid OTP" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh access token",
+        "operationId": "refreshToken",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["refreshToken"],
+                "properties": {
+                  "refreshToken": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New access token issued"
+          },
+          "401": { "description": "Invalid token" }
+        }
+      }
+    },
+    "/onboarding/complete": {
+      "post": {
+        "tags": ["Onboarding"],
+        "summary": "Complete organization onboarding and initialize obligations",
+        "operationId": "completeOnboarding",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["licenseNumber", "licenseIssueDate", "licenseRenewalDate"],
+                "properties": {
+                  "licenseNumber": { "type": "string" },
+                  "licenseIssueDate": { "type": "string", "format": "date" },
+                  "licenseRenewalDate": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Onboarding completed"
+          },
+          "400": { "description": "Invalid request data" }
+        }
+      }
+    },
+    "/obligations": {
+      "get": {
+        "tags": ["Obligations"],
+        "summary": "List all organization obligations",
+        "operationId": "listObligations",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["MET", "PARTIAL", "NOT_STARTED", "AT_RISK", "WAIVED"] }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of obligations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "obligations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "title": { "type": "string" },
+                          "category": { "type": "string" },
+                          "status": { "type": "string" },
+                          "frequency": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/obligations/{id}": {
+      "get": {
+        "tags": ["Obligations"],
+        "summary": "Get obligation details",
+        "operationId": "getObligation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Obligation details" },
+          "404": { "description": "Obligation not found" }
+        }
+      },
+      "patch": {
+        "tags": ["Obligations"],
+        "summary": "Update obligation status",
+        "operationId": "updateObligation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Obligation updated" },
+          "404": { "description": "Obligation not found" }
+        }
+      }
+    },
+    "/obligations/{id}/evidence": {
+      "post": {
+        "tags": ["Obligations"],
+        "summary": "Get S3 presigned URL for evidence upload",
+        "operationId": "createEvidenceUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["fileName", "contentType"],
+                "properties": {
+                  "fileName": { "type": "string" },
+                  "contentType": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Presigned URL generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadUrl": { "type": "string" },
+                    "fileId": { "type": "string" },
+                    "expiresIn": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/obligations/{id}/evidence/{fileId}": {
+      "delete": {
+        "tags": ["Obligations"],
+        "summary": "Delete evidence file",
+        "operationId": "deleteEvidence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Evidence deleted" },
+          "404": { "description": "File not found" }
+        }
+      }
+    },
+    "/circulars": {
+      "get": {
+        "tags": ["Circulars"],
+        "summary": "List applicable regulatory circulars",
+        "operationId": "listCirculars",
+        "responses": {
+          "200": {
+            "description": "List of circulars"
+          }
+        }
+      }
+    },
+    "/circulars/{id}": {
+      "get": {
+        "tags": ["Circulars"],
+        "summary": "Get circular details",
+        "operationId": "getCircular",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Circular details" },
+          "404": { "description": "Circular not found" }
+        }
+      }
+    },
+    "/circulars/{id}/acknowledge": {
+      "patch": {
+        "tags": ["Circulars"],
+        "summary": "Acknowledge circular as reviewed",
+        "operationId": "acknowledgeCircular",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Circular acknowledged" }
+        }
+      }
+    },
+    "/circulars/{id}/dispute": {
+      "post": {
+        "tags": ["Circulars"],
+        "summary": "File dispute against circular relevance",
+        "operationId": "disputeCircular",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": {
+                  "reason": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Dispute filed" }
+        }
+      }
+    },
+    "/circulars/{id}/dispute/{disputeId}": {
+      "patch": {
+        "tags": ["Circulars"],
+        "summary": "Admin: Resolve circular dispute",
+        "operationId": "resolveDispute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "disputeId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["outcome"],
+                "properties": {
+                  "outcome": { "type": "string", "enum": ["RELEVANCE_CONFIRMED", "RELEVANCE_WITHDRAWN", "PARTIAL_RELEVANCE"] },
+                  "resolutionNote": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Dispute resolved" }
+        }
+      }
+    },
+    "/calendar": {
+      "get": {
+        "tags": ["Calendar"],
+        "summary": "List compliance deadlines",
+        "operationId": "listCalendarEvents",
+        "responses": {
+          "200": {
+            "description": "List of calendar events"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Calendar"],
+        "summary": "Create new compliance deadline",
+        "operationId": "createCalendarEvent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["obligationId", "dueDate"],
+                "properties": {
+                  "obligationId": { "type": "string" },
+                  "dueDate": { "type": "string", "format": "date" },
+                  "template": { "type": "string" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Calendar event created" }
+        }
+      }
+    },
+    "/calendar/{id}": {
+      "get": {
+        "tags": ["Calendar"],
+        "summary": "Get calendar event details",
+        "operationId": "getCalendarEvent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Calendar event details" },
+          "404": { "description": "Event not found" }
+        }
+      },
+      "patch": {
+        "tags": ["Calendar"],
+        "summary": "Update calendar event",
+        "operationId": "updateCalendarEvent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dueDate": { "type": "string", "format": "date" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Calendar event updated" }
+        }
+      },
+      "delete": {
+        "tags": ["Calendar"],
+        "summary": "Delete calendar event (admin only)",
+        "operationId": "deleteCalendarEvent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Calendar event deleted" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/readiness": {
+      "get": {
+        "tags": ["Readiness"],
+        "summary": "Get compliance readiness score",
+        "operationId": "getReadinessScore",
+        "responses": {
+          "200": {
+            "description": "Readiness score",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "score": {
+                      "type": "object",
+                      "properties": {
+                        "totalScore": { "type": "number" },
+                        "band": { "type": "string" },
+                        "components": { "type": "object" },
+                        "computedAt": { "type": "string", "format": "date-time" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readiness/report": {
+      "post": {
+        "tags": ["Readiness"],
+        "summary": "Generate readiness report",
+        "operationId": "generateReadinessReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "format": { "type": "string", "enum": ["json", "pdf"] },
+                  "includeRecommendations": { "type": "boolean" },
+                  "period": { "type": "string", "enum": ["last_month", "last_quarter", "last_year", "all_time"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Report generated" }
+        }
+      }
+    },
+    "/admin/obligations": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create new obligation (admin only)",
+        "operationId": "createObligation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "description", "category", "frequency", "severity"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "legalSource": { "type": "string" },
+                  "category": { "type": "string" },
+                  "frequency": { "type": "string" },
+                  "severity": { "type": "string" },
+                  "licenseTypes": { "type": "array", "items": { "type": "string" } },
+                  "activityFlags": { "type": "array", "items": { "type": "string" } },
+                  "evidenceRequired": { "type": "array" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Obligation created" }
+        }
+      }
+    },
+    "/admin/obligations/{id}": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Update obligation (admin only)",
+        "operationId": "updateAdminObligation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Obligation updated" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Archive obligation (admin only)",
+        "operationId": "archiveObligation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Obligation archived" }
+        }
+      }
+    },
+    "/admin/circulars/ingest": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Ingest new regulatory circular (admin only)",
+        "operationId": "ingestCircular",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "summary", "date", "urgency"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "summary": { "type": "string" },
+                  "content": { "type": "string" },
+                  "url": { "type": "string", "format": "uri" },
+                  "date": { "type": "string", "format": "date" },
+                  "urgency": { "type": "string", "enum": ["CRITICAL", "HIGH", "MONITOR"] },
+                  "affectedLicenseTypes": { "type": "array", "items": { "type": "string" } },
+                  "affectedObligationIds": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Circular ingested" }
+        }
+      }
+    },
+    "/admin/circulars/{id}": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Curate circular - update relevance tags (admin only)",
+        "operationId": "curateCircular",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "affectedLicenseTypes": { "type": "array", "items": { "type": "string" } },
+                  "affectedObligationIds": { "type": "array", "items": { "type": "string" } },
+                  "urgency": { "type": "string" },
+                  "taggingConfidence": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Circular curated" }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints"
+    },
+    {
+      "name": "Onboarding",
+      "description": "Organization onboarding"
+    },
+    {
+      "name": "Obligations",
+      "description": "Compliance obligation management"
+    },
+    {
+      "name": "Circulars",
+      "description": "Regulatory circular tracking"
+    },
+    {
+      "name": "Calendar",
+      "description": "Compliance deadline calendar"
+    },
+    {
+      "name": "Readiness",
+      "description": "Compliance readiness scoring"
+    },
+    {
+      "name": "Admin",
+      "description": "Admin-only endpoints"
+    }
+  ]
+}
